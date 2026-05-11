@@ -1,0 +1,49 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.venv/
+venv/
+env/
+
+# Environment / secrets — NEVER commit real credentials
+.env
+*.pem
+*.key
+jk.pem
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Test & coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Local DB dumps (may contain real data)
+dump.sql
+smart_parking.db
+
+# Instance folder (Flask)
+instance/
+
+# Editors / IDEs
+.idea/
+**/.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Node (if ever used)
+node_modules/

@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Compare prices — SpotOn Smart Parking</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    <style>
+      .price-compare-view-toggle {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .price-compare-view-toggle .view-pill {
+        display: inline-flex;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 0.9rem;
+        border: 1px solid #ddd;
+        color: #333;
+        text-decoration: none;
+        background: #fff;
+      }
+      .price-compare-view-toggle .view-pill--active {
+        border-color: #111;
+        background: #111;
+        color: #fff;
+      }
+      .price-compare-hint {
+        margin: 0 0 14px;
+        color: #555;
+        font-size: 0.95rem;
+        line-height: 1.45;
+      }
+      .price-compare-wrap {
+        overflow-x: auto;
+        border: 1px solid #e5e5e5;
+        border-radius: 16px;
+        background: #fff;
+      }
+      .price-compare-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+      }
+      .price-compare-table th,
+      .price-compare-table td {
+        padding: 12px 14px;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+        vertical-align: top;
+      }
+      .price-compare-table th {
+        font-weight: 600;
+        color: #222;
+        background: #fafafa;
+        white-space: nowrap;
+      }
+      .price-compare-table tr:last-child td {
+        border-bottom: none;
+      }
+      .price-compare-table tr.price-compare-row--highlight td {
+        background: #f3faf5;
+      }
+      .price-compare-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 4px;
+      }
+      .price-compare-badge {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: #e8f5ec;
+        color: #1b5e20;
+      }
+      .price-compare-meta {
+        color: #666;
+        font-size: 0.85rem;
+        margin-top: 4px;
+      }
+      .price-compare-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+    </style>
+  </head>
+  <body class="auth-page auth-page-with-nav">
+    {% if user_email %}
+      {% include "_driver_static_nav.html" %}
+    {% endif %}
+    <div class="auth-card auth-card--wide compact-page">
+      <div class="auth-header">
+        <a href="{{ url_for('home') }}" class="text-logo">Spot<span>On</span></a>
+        <h1>Compare parking prices</h1>
+        <p>Same filters as search, shown in a sortable table. Estimates use effective hourly rate for your vehicle and slot filters.</p>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+              <div class="flash-message {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="search-topbar">
+        <div class="search-topbar-actions">
+          {% if user_role == "driver" %}
+            <a href="{{ url_for('dashboard') }}" class="topbar-btn topbar-btn-secondary">Back to Dashboard</a>
+          {% elif user_role == "operator" %}
+            <a href="{{ url_for('operator_dashboard') }}" class="topbar-btn topbar-btn-secondary">Back to Dashboard</a>
+          {% elif user_role == "admin" %}
+            <a href="{{ url_for('admin_dashboard') }}" class="topbar-btn topbar-btn-secondary">Back to Dashboard</a>
+          {% else %}
+            <a href="{{ url_for('home') }}" class="topbar-btn topbar-btn-secondary">Back to Home</a>
+          {% endif %}
+
+          {% if user_email %}
+            <a href="{{ url_for('logout') }}" class="topbar-btn topbar-btn-primary">Logout</a>
+          {% else %}
+            <a href="{{ url_for('login') }}" class="topbar-btn topbar-btn-primary">Sign in</a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="price-compare-view-toggle">
+        <span class="search-section-label" style="margin: 0">Layout</span>
+        <a
+          class="view-pill"
+          href="{{ url_for('search') }}{% if request.query_string %}?{{ request.query_string.decode('utf-8') }}{% endif %}"
+        >Card view</a>
+        <span class="view-pill view-pill--active">Table view</span>
+      </div>
+
+      <form method="GET" action="{{ url_for('price_compare') }}" class="search-form">
+        <input type="hidden" name="quick_day" id="quick_day" value="{{ quick_day or 'today' }}">
+        <input type="hidden" name="quick_duration" id="quick_duration" value="{{ quick_duration or '60' }}">
+
+        <div class="search-filters-card">
+          <div class="search-filters-section search-filters-section--quick">
+            <p class="search-section-label">Quick presets</p>
+            <div class="quick-time-panel search-quick-inline">
+              <div class="quick-time-group">
+                <span class="quick-time-label">Day</span>
+                <div class="quick-time-actions">
+                  <button type="button" class="quick-time-btn {% if quick_day == 'today' %}active{% endif %}" data-day="today">Today</button>
+                  <button type="button" class="quick-time-btn {% if quick_day == 'tomorrow' %}active{% endif %}" data-day="tomorrow">Tomorrow</button>
+                </div>
+              </div>
+              <div class="quick-time-group">
+                <span class="quick-time-label">Duration</span>
+                <div class="quick-time-actions">
+                  <button type="button" class="quick-time-btn {% if quick_duration == '30' %}active{% endif %}" data-duration="30">30 min</button>
+                  <button type="button" class="quick-time-btn {% if quick_duration == '60' %}active{% endif %}" data-duration="60">1 hour</button>
+                  <button type="button" class="quick-time-btn {% if quick_duration == '120' %}active{% endif %}" data-duration="120">2 hours</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="search-filters-section">
+            <div class="search-form-grid-primary">
+              <div class="search-location-row">
+                <label class="reserve-label" for="location">Location</label>
+                <input type="text" id="location" name="location" class="reserve-input" placeholder="Search by lot name or address" value="{{ location }}">
+              </div>
+              <div class="search-time-grid">
+                <div>
+                  <label class="reserve-label" for="start_date">Start date</label>
+                  <input type="date" id="start_date" name="start_date" class="reserve-input" value="{{ start_date }}">
+                </div>
+                <div>
+                  <label class="reserve-label" for="start_time_only">Start time</label>
+                  <select id="start_time_only" name="start_time_only" class="reserve-input">
+                    <option value="">Select time</option>
+                    {% for opt in time_options %}
+                      <option value="{{ opt.value }}" {% if start_time_only == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label class="reserve-label" for="end_date">End date</label>
+                  <input type="date" id="end_date" name="end_date" class="reserve-input" value="{{ end_date }}">
+                </div>
+                <div>
+                  <label class="reserve-label" for="end_time_only">End time</label>
+                  <select id="end_time_only" name="end_time_only" class="reserve-input">
+                    <option value="">Select time</option>
+                    {% for opt in time_options %}
+                      <option value="{{ opt.value }}" {% if end_time_only == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <details class="search-refine" {% if vehicle_type or parking_type or slot_type or sort_by %}open{% endif %}>
+            <summary>Refine &amp; sort</summary>
+            <div class="search-form-grid-refine">
+              <div>
+                <label class="reserve-label" for="vehicle_type">Vehicle</label>
+                <select id="vehicle_type" name="vehicle_type" class="reserve-input">
+                  <option value="" {% if not vehicle_type %}selected{% endif %}>All types</option>
+                  <option value="compact" {% if vehicle_type == "compact" %}selected{% endif %}>Compact</option>
+                  <option value="sedan" {% if vehicle_type == "sedan" %}selected{% endif %}>Sedan</option>
+                  <option value="suv" {% if vehicle_type == "suv" %}selected{% endif %}>SUV</option>
+                  <option value="truck" {% if vehicle_type == "truck" %}selected{% endif %}>Truck</option>
+                </select>
+              </div>
+              <div>
+                <label class="reserve-label" for="parking_type">Parking type</label>
+                <select id="parking_type" name="parking_type" class="reserve-input">
+                  <option value="">All</option>
+                  <option value="Covered Parking" {{ 'selected="selected"' if parking_type == 'Covered Parking' else '' }}>Covered Parking</option>
+                  <option value="Multi-Level Garage" {{ 'selected="selected"' if parking_type == 'Multi-Level Garage' else '' }}>Multi-Level Garage</option>
+                  <option value="Open Parking Lot" {{ 'selected="selected"' if parking_type == 'Open Parking Lot' else '' }}>Open Parking Lot</option>
+                </select>
+              </div>
+              <div>
+                <label class="reserve-label" for="slot_type">Slot type</label>
+                <select id="slot_type" name="slot_type" class="reserve-input">
+                  <option value="">All</option>
+                  <option value="standard" {{ 'selected="selected"' if slot_type == 'standard' else '' }}>Standard</option>
+                  <option value="ev" {{ 'selected="selected"' if slot_type == 'ev' else '' }}>EV</option>
+                  <option value="accessible" {{ 'selected="selected"' if slot_type == 'accessible' else '' }}>Accessible</option>
+                </select>
+              </div>
+              <div>
+                <label class="reserve-label" for="sort_by">Sort</label>
+                <select id="sort_by" name="sort_by" class="reserve-input">
+                  <option value="">Default (lowest hourly first on this page)</option>
+                  <option value="price_asc" {{ 'selected="selected"' if sort_by == 'price_asc' else '' }}>Price: Low to High</option>
+                  <option value="price_desc" {{ 'selected="selected"' if sort_by == 'price_desc' else '' }}>Price: High to Low</option>
+                  <option value="available_desc" {{ 'selected="selected"' if sort_by == 'available_desc' else '' }}>Most Available</option>
+                </select>
+              </div>
+            </div>
+          </details>
+
+          <div class="search-form-submit-row">
+            <button type="submit" class="btn btn-primary search-submit-btn">Update comparison</button>
+          </div>
+        </div>
+      </form>
+
+      {% if has_time_window %}
+        <p class="price-compare-hint">
+          <strong>Estimated total</strong> is hourly rate × {{ '%.2f'|format(compare_hours) }} hours for this window (pre-tax; promos apply at checkout).
+        </p>
+      {% else %}
+        <p class="price-compare-hint">
+          Set a start and end time to see <strong>estimated totals</strong> for the same window. Rows still show effective <strong>$/hour</strong> for your filters.
+        </p>
+      {% endif %}
+
+      {% if parking_lots %}
+        <div class="price-compare-wrap">
+          <table class="price-compare-table">
+            <thead>
+              <tr>
+                <th>Lot</th>
+                <th>$/hour</th>
+                <th>Est. total</th>
+                <th>Available</th>
+                <th>Type</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for lot in parking_lots %}
+                <tr class="{% if (has_time_window and lot.is_lowest_estimated_total) or (not has_time_window and lot.is_lowest_hourly_rate) %}price-compare-row--highlight{% endif %}">
+                  <td>
+                    <strong>{{ lot.name }}</strong>
+                    <div class="price-compare-meta">{{ lot.location }}</div>
+                    {% if lot.is_lowest_hourly_rate or (has_time_window and lot.is_lowest_estimated_total) %}
+                      <div class="price-compare-badges">
+                        {% if lot.is_lowest_hourly_rate %}<span class="price-compare-badge">Lowest $/hr</span>{% endif %}
+                        {% if has_time_window and lot.is_lowest_estimated_total %}<span class="price-compare-badge">Lowest est.</span>{% endif %}
+                      </div>
+                    {% endif %}
+                  </td>
+                  <td>${{ '%.2f'|format(lot.price_per_hour) }}</td>
+                  <td>
+                    {% if lot.estimated_total is not none %}
+                      ${{ '%.2f'|format(lot.estimated_total) }}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td>{{ lot.available_slots }} slot{% if lot.available_slots != 1 %}s{% endif %}</td>
+                  <td>{{ lot.type }}</td>
+                  <td>
+                    <div class="price-compare-actions">
+                      <a class="btn btn-secondary lot-view-btn" href="{{ url_for('lot_details', lot_id=lot.id, start_time=combined_start_time, end_time=combined_end_time) }}">Details</a>
+                      {% if user_role == "driver" %}
+                        <form method="POST" action="{{ url_for('toggle_favorite', lot_id=lot.id) }}" class="form-inline-reset">
+                          <input type="hidden" name="next_url" value="{{ request.full_path }}">
+                          <button type="submit" class="btn btn-secondary favorite-btn">
+                            {% if lot.is_favorite %}<span class="favorite-heart">♥</span> Saved{% else %}<span class="favorite-heart">♥</span> Save{% endif %}
+                          </button>
+                        </form>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state-card">
+          <p>No parking lots match your current filters.</p>
+          <p style="margin-top: 8px; color: #666;">Try widening location, time, or refine options.</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <script>
+      function pad(n) {
+        return String(n).padStart(2, "0");
+      }
+      function roundUpToNextHalfHour(date) {
+        const d = new Date(date);
+        d.setSeconds(0, 0);
+        const mins = d.getMinutes();
+        if (mins === 0 || mins === 30) {
+          d.setMinutes(mins + 30);
+        } else if (mins < 30) {
+          d.setMinutes(30);
+        } else {
+          d.setHours(d.getHours() + 1);
+          d.setMinutes(0);
+        }
+        return d;
+      }
+      function formatDateValue(date) {
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+      }
+      function formatTimeValue(date) {
+        return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      }
+      function applyQuickRange() {
+        const dayValue = document.getElementById("quick_day").value;
+        const durationValue = parseInt(document.getElementById("quick_duration").value, 10);
+        const startDateInput = document.getElementById("start_date");
+        const startTimeInput = document.getElementById("start_time_only");
+        const endDateInput = document.getElementById("end_date");
+        const endTimeInput = document.getElementById("end_time_only");
+        let start;
+        if (dayValue === "today") {
+          start = roundUpToNextHalfHour(new Date());
+        } else {
+          start = new Date();
+          start.setDate(start.getDate() + 1);
+          start.setHours(9, 0, 0, 0);
+        }
+        const end = new Date(start);
+        end.setMinutes(end.getMinutes() + durationValue);
+        startDateInput.value = formatDateValue(start);
+        startTimeInput.value = formatTimeValue(start);
+        endDateInput.value = formatDateValue(end);
+        endTimeInput.value = formatTimeValue(end);
+      }
+      document.querySelectorAll("[data-day]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll("[data-day]").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          document.getElementById("quick_day").value = btn.dataset.day;
+          applyQuickRange();
+        });
+      });
+      document.querySelectorAll("[data-duration]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll("[data-duration]").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          document.getElementById("quick_duration").value = btn.dataset.duration;
+          applyQuickRange();
+        });
+      });
+      document.addEventListener("DOMContentLoaded", () => {
+        const startDateInput = document.getElementById("start_date");
+        const startTimeInput = document.getElementById("start_time_only");
+        const endDateInput = document.getElementById("end_date");
+        const endTimeInput = document.getElementById("end_time_only");
+        if (!startDateInput.value && !startTimeInput.value && !endDateInput.value && !endTimeInput.value) {
+          applyQuickRange();
+        }
+      });
+    </script>
+  </body>
+</html>

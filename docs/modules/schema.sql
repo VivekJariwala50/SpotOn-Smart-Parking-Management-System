@@ -1,0 +1,46 @@
+-- SpotOn schema (reference). The live database is created/migrated outside this file;
+-- use app.py helpers (e.g. ensure_pricing_overrides_table, ensure_db_integrity_constraints)
+-- for idempotent additions. Column types here match the Flask app (PostgreSQL).
+
+-- Core tables (abbreviated; adjust to your deployment)
+--
+-- users (id, full_name, email UNIQUE, password_hash, role, ...)
+-- parking_lots (id UUID PK, name, address, price_per_hour, parking_type, ...)
+-- parking_slots (
+--   id,
+--   lot_id UUID REFERENCES parking_lots(id),
+--   label TEXT,
+--   slot_type, supported_vehicle_type, status, is_active, ...
+-- )
+-- reservations (
+--   id,
+--   user_id REFERENCES users(id),
+--   slot_id REFERENCES parking_slots(id),
+--   start_time TIMESTAMPTZ,
+--   end_time TIMESTAMPTZ,
+--   status  -- e.g. CONFIRMED, CANCELLED
+-- )
+
+-- Integrity (applied at runtime by ensure_db_integrity_constraints in app.py):
+-- CREATE EXTENSION IF NOT EXISTS btree_gist;
+--
+-- Unique slot label per lot (normalized):
+-- CREATE UNIQUE INDEX parking_slots_lot_id_label_normalized_uidx
+--   ON parking_slots (lot_id, upper(btrim(label::text)));
+--
+-- No overlapping CONFIRMED reservations for the same slot:
+-- ALTER TABLE reservations ADD CONSTRAINT reservations_confirmed_no_overlap
+--   EXCLUDE USING gist (
+--     slot_id WITH =,
+--     tstzrange(start_time, end_time, '[)') WITH &&
+--   ) WHERE (status = 'CONFIRMED');
+
+-- Per-lot pricing overrides (see ensure_pricing_overrides_table in app.py):
+-- CREATE TABLE pricing_overrides (
+--   lot_id UUID NOT NULL REFERENCES parking_lots(id) ON DELETE CASCADE,
+--   slot_type VARCHAR(50) NOT NULL DEFAULT 'any',
+--   vehicle_type VARCHAR(50) NOT NULL DEFAULT 'any',
+--   price_per_hour NUMERIC(10,2) NOT NULL CHECK (price_per_hour >= 0),
+--   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+--   PRIMARY KEY (lot_id, slot_type, vehicle_type)
+-- );
