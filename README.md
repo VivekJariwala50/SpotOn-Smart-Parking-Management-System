@@ -136,6 +136,89 @@ The Docker image uses `gunicorn` with multiple workers and includes a built-in h
 
 ---
 
+## 📊 Architecture & Database Diagrams
+
+### System Context Diagram
+```mermaid
+flowchart TD
+    Driver([Driver]) -->|Searches & Books| WebApp
+    Operator([Operator]) -->|Manages Inventory| WebApp
+    Admin([Admin]) -->|Monitors System| WebApp
+    
+    subgraph SpotOn Platform
+        WebApp[Flask Web Application]
+        Auth[Werkzeug Security / RBAC]
+        Booking[Reservation Engine]
+        Billing[Mock Billing Module]
+        
+        WebApp --> Auth
+        WebApp --> Booking
+        WebApp --> Billing
+    end
+    
+    Booking --> DB[(PostgreSQL Database)]
+    Auth --> DB
+    Billing --> DB
+    
+    subgraph Infrastructure
+        Docker[Docker & Gunicorn]
+        Docker --> WebApp
+    end
+```
+
+### Entity-Relationship (ER) Diagram
+```mermaid
+erDiagram
+    USERS ||--o{ PROFILES : has
+    USERS ||--o{ VEHICLES : owns
+    USERS ||--o{ RESERVATIONS : makes
+    USERS ||--o{ FAVORITE_LOCATIONS : saves
+    USERS ||--o{ TRANSACTIONS : performs
+    
+    PARKING_LOTS ||--o{ PARKING_SLOTS : contains
+    PARKING_LOTS ||--o{ PRICING_OVERRIDES : has
+    PARKING_LOTS ||--o{ FAVORITE_LOCATIONS : is_favorited_by
+    
+    PARKING_SLOTS ||--o{ RESERVATIONS : booked_for
+    RESERVATIONS ||--o| TRANSACTIONS : paid_via
+    
+    USERS {
+        uuid id PK
+        string email
+        string role
+        string full_name
+        boolean is_active
+    }
+    
+    PARKING_LOTS {
+        uuid id PK
+        string name
+        string address
+        numeric price_per_hour
+        string parking_type
+    }
+    
+    PARKING_SLOTS {
+        uuid id PK
+        uuid lot_id FK
+        string label
+        string slot_type
+        string status
+        boolean is_active
+    }
+    
+    RESERVATIONS {
+        uuid id PK
+        uuid user_id FK
+        uuid slot_id FK
+        datetime start_time
+        datetime end_time
+        string status
+    }
+```
+
+---
+
 ## 🧪 Testing
 
 The project includes a suite of smoke tests built with `pytest` to verify core application functionality and routing integrity.
